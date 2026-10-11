@@ -12,5 +12,4 @@ function FinanceProvider({ children }) {
   );
 }
 
-
 export default FinanceProvider;
