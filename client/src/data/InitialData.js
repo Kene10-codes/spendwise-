@@ -35,7 +35,7 @@ export const initialData = {
     {
       id: "5",
       title: "Movie Night",
-      category: "Medicals",
+      category: "Health",
       type: "expense",
       amount: 10000,
       date: "2026-10-06",
@@ -46,6 +46,13 @@ export const initialData = {
     { id: "1", category: "Food", limit: 50000 },
     { id: "2", category: "Transport", limit: 30000 },
     { id: "3", category: "Housing", limit: 100000 },
-    { id: "4", category: "Medicals", limit: 20000 }
-  ]
+    { id: "4", category: "Health", limit: 20000 }
+  ],
+
+  settings: {
+  name: "SpendWise User",
+  email: "",
+  currency: "NGN",
+  theme: "light",
+},
 };

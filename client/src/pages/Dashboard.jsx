@@ -1,19 +1,20 @@
-import { useFinance } from "../hooks/useFinance";
 import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
 import StatCard from "../components/StatCard";
 import TransactionList from "../components/TransactionList";
 import SpendingChart from "../components/SpendingChart";
 
-const date = new Date().toLocaleDateString("en-NG", { month: "long", year: "numeric" })
-const currency = new Intl.NumberFormat("en-NG", {
-  style: "currency",
-  currency: "NGN",
-  maximumFractionDigits: 0,
+import { useFinance } from "../hooks/useFinance";
+import { useCurrency } from "../hooks/useCurrency";
+
+const date = new Date().toLocaleDateString("en-NG", {
+  month: "long",
+  year: "numeric",
 });
 
 function Dashboard() {
   const { state } = useFinance();
+  const formatCurrency = useCurrency();
 
   const { transactions } = state;
 
@@ -31,7 +32,7 @@ function Dashboard() {
     income > 0 ? ((balance / income) * 100).toFixed(1) : "0.0";
 
   return (
-    <div className="min-h-screen bg-slate-50 lg:flex">
+    <div className="min-h-screen bg-slate-50 lg:flex dark:bg-slate-950 dark:text-slate-100">
       <div className="hidden lg:block">
         <Sidebar />
       </div>
@@ -52,21 +53,21 @@ function Dashboard() {
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
               title="Total Income"
-              amount={currency.format(income)}
+              amount={formatCurrency(income)}
               description="Income in your recorded transactions"
               type="income"
             />
 
             <StatCard
               title="Total Expenses"
-              amount={currency.format(expenses)}
+              amount={formatCurrency(expenses)}
               description="Expenses in your recorded transactions"
               type="expenses"
             />
 
             <StatCard
               title="Net Cash Flow"
-              amount={currency.format(balance)}
+              amount={formatCurrency(balance)}
               description="Income minus expenses"
               type="balance"
             />

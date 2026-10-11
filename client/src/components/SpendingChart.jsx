@@ -1,5 +1,5 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-
+import { useCurrency } from "../hooks/useCurrency";
 const COLORS = [
   "#059669",
   "#2563eb",
@@ -9,11 +9,6 @@ const COLORS = [
   "#0891b2",
 ];
 
-const currency = new Intl.NumberFormat("en-NG", {
-  style: "currency",
-  currency: "NGN",
-  maximumFractionDigits: 0,
-});
 
 export default function SpendingChart({ transactions }) {
   const categoryTotals = transactions
@@ -26,8 +21,6 @@ export default function SpendingChart({ transactions }) {
       return totals;
     }, {});
 
-    
-      console.log(categoryTotals); // Debugging line
   const chartData = Object.entries(categoryTotals).map(([name, value]) => ({
     name,
     value,
@@ -65,7 +58,7 @@ export default function SpendingChart({ transactions }) {
                   ))}
                 </Pie>
 
-                <Tooltip formatter={(value) => currency.format(value)} />
+                <Tooltip formatter={(value) => useCurrency(value)} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -82,7 +75,7 @@ export default function SpendingChart({ transactions }) {
                 <div className="min-w-0">
                   <p className="truncate text-xs text-slate-500">{item.name}</p>
                   <p className="text-sm font-semibold text-slate-800">
-                    {currency.format(item.value)}
+                    {useCurrency(item.value)}
                   </p>
                 </div>
               </div>

@@ -1,9 +1,10 @@
 import { useState } from "react";
+import { useFinance } from "../hooks/useFinance";
 
 const today = new Date().toLocaleDateString("en-CA");
 
 const categories = {
-  income: ["Salary", "Freelance", "Business", "Medicals", "Investment", "Other"],
+  income: ["Salary", "Freelance", "Business", "Investment", "Other"],
   expense: [
     "Food",
     "Transport",
@@ -24,21 +25,41 @@ const initialForm = {
   date: today,
 };
 
-function TransactionForm({ onAdd, onCancel }) {
-  const [form, setForm] = useState(initialForm);
+function TransactionForm({ onAdd, onCancel, initialTransaction = null }) {
+  const { state } = useFinance();
+  const [form, setForm] = useState(() => {
+    if (!initialTransaction) return initialForm;
+
+    return {
+      title: initialTransaction.title,
+      type: initialTransaction.type,
+      category: initialTransaction.category,
+      amount: String(initialTransaction.amount),
+      date: initialTransaction.date,
+    };
+  });
+
   const [error, setError] = useState("");
+
+  const inputClass =
+    "mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100";
 
   function handleChange(event) {
     const { name, value } = event.target;
 
     setForm((previous) => {
-      const next = { ...previous, [name]: value };
-
       if (name === "type") {
-        next.category = categories[value][0];
+        return {
+          ...previous,
+          type: value,
+          category: categories[value][0],
+        };
       }
 
-      return next;
+      return {
+        ...previous,
+        [name]: value,
+      };
     });
 
     setError("");
@@ -50,38 +71,33 @@ function TransactionForm({ onAdd, onCancel }) {
     const amount = Number(form.amount);
 
     if (!form.title.trim()) {
-      setError("Please enter a transaction description.");
+      setError("Enter a transaction description.");
       return;
     }
 
     if (!Number.isFinite(amount) || amount <= 0) {
-      setError("Enter an amount greater than zero.");
+      setError("Amount must be greater than zero.");
       return;
     }
 
-    if (!form.date || Number.isNaN(Date.parse(form.date))) {
-      setError("Please select a valid date.");
+    if (
+      !form.date ||
+      Number.isNaN(Date.parse(form.date)) ||
+      form.date > today
+    ) {
+      setError("Enter a valid date that is not in the future.");
       return;
     }
 
     onAdd({
-      id: crypto.randomUUID(),
+      ...(initialTransaction ? { id: initialTransaction.id } : {}),
       title: form.title.trim(),
       type: form.type,
       category: form.category,
       amount,
       date: form.date,
     });
-
-    setForm({
-      ...initialForm,
-      date: today,
-    });
-    setError("");
   }
-
-  const inputClass =
-    "mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100";
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -94,7 +110,6 @@ function TransactionForm({ onAdd, onCancel }) {
           name="title"
           value={form.title}
           onChange={handleChange}
-          placeholder="e.g. Monthly salary"
           className={inputClass}
           maxLength={100}
           required
@@ -141,7 +156,7 @@ function TransactionForm({ onAdd, onCancel }) {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="amount" className="text-sm font-medium">
-            Amount (₦)
+            Amount ({state.settings.currency})
           </label>
           <input
             id="amount"
@@ -151,7 +166,6 @@ function TransactionForm({ onAdd, onCancel }) {
             step="0.01"
             value={form.amount}
             onChange={handleChange}
-            placeholder="5000"
             className={inputClass}
             required
           />
@@ -165,6 +179,7 @@ function TransactionForm({ onAdd, onCancel }) {
             id="date"
             name="date"
             type="date"
+            max={today}
             value={form.date}
             onChange={handleChange}
             className={inputClass}
@@ -183,7 +198,7 @@ function TransactionForm({ onAdd, onCancel }) {
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium hover:bg-slate-50"
+          className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm hover:bg-slate-50"
         >
           Cancel
         </button>
@@ -192,7 +207,7 @@ function TransactionForm({ onAdd, onCancel }) {
           type="submit"
           className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
         >
-          Save Transaction
+          {initialTransaction ? "Save Changes" : "Add Transaction"}
         </button>
       </div>
     </form>

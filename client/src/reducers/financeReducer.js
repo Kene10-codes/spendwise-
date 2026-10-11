@@ -36,6 +36,15 @@ export function financeReducer(state, action) {
         budgets: state.budgets.filter((budget) => budget.id !== action.payload),
       };
 
+    case "UPDATE_SETTINGS":
+      return {
+        ...state,
+        settings: {
+          ...(state.settings || {}),
+          ...action.payload,
+        },
+      };
+
     default:
       return state;
   }

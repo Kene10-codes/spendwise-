@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Plus, Search, Trash2, X } from "lucide-react";
+import { Plus, Search, Trash2, Pencil, X, CalendarDays } from "lucide-react";
 
 import { useFinance } from "../hooks/useFinance";
 import Sidebar from "../components/Sidebar";
@@ -16,16 +16,41 @@ function Transactions() {
   const { state, dispatch } = useFinance();
 
   const [showForm, setShowForm] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
-  function handleAdd(transaction) {
-    dispatch({
-      type: "ADD_TRANSACTION",
-      payload: transaction,
-    });
+  function openAddForm() {
+    setEditingTransaction(null);
+    setShowForm(true);
+  }
 
+  function openEditForm(transaction) {
+    setEditingTransaction(transaction);
+    setShowForm(true);
+  }
+
+  function closeForm() {
     setShowForm(false);
+    setEditingTransaction(null);
+  }
+
+  function handleSave(transaction) {
+    if (editingTransaction) {
+      dispatch({
+        type: "UPDATE_TRANSACTION",
+        payload: transaction,
+      });
+    } else {
+      dispatch({
+        type: "ADD_TRANSACTION",
+        payload: transaction,
+      });
+    }
+
+    closeForm();
   }
 
   function handleDelete(id) {
@@ -33,19 +58,19 @@ function Transactions() {
       "Are you sure you want to delete this transaction?",
     );
 
-    if (!confirmed) return;
-
-    dispatch({
-      type: "DELETE_TRANSACTION",
-      payload: id,
-    });
+    if (confirmed) {
+      dispatch({
+        type: "DELETE_TRANSACTION",
+        payload: id,
+      });
+    }
   }
 
   const filteredTransactions = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
     return state.transactions
       .filter((transaction) => {
-        const query = search.trim().toLowerCase();
-
         const matchesSearch =
           transaction.title.toLowerCase().includes(query) ||
           transaction.category.toLowerCase().includes(query);
@@ -53,13 +78,19 @@ function Transactions() {
         const matchesType =
           typeFilter === "all" || transaction.type === typeFilter;
 
-        return matchesSearch && matchesType;
+        const matchesStartDate = !startDate || transaction.date >= startDate;
+
+        const matchesEndDate = !endDate || transaction.date <= endDate;
+
+        return (
+          matchesSearch && matchesType && matchesStartDate && matchesEndDate
+        );
       })
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [state.transactions, search, typeFilter]);
+  }, [state.transactions, search, typeFilter, startDate, endDate]);
 
   return (
-    <div className="min-h-screen bg-slate-50 lg:flex">
+    <div className="min-h-screen bg-slate-50 lg:flex dark:bg-slate-950 dark:text-slate-100">
       <div className="hidden lg:block">
         <Sidebar />
       </div>
@@ -74,13 +105,13 @@ function Transactions() {
                 Transactions
               </h1>
               <p className="mt-2 text-sm text-slate-500">
-                Manage your income and expenses.
+                Track and manage your income and expenses.
               </p>
             </div>
 
             <button
               type="button"
-              onClick={() => setShowForm(true)}
+              onClick={openAddForm}
               className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
             >
               <Plus size={18} />
@@ -92,13 +123,13 @@ function Transactions() {
             <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
               <div className="mb-5 flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-slate-900">
-                  New Transaction
+                  {editingTransaction ? "Edit Transaction" : "New Transaction"}
                 </h2>
 
                 <button
                   type="button"
-                  onClick={() => setShowForm(false)}
-                  aria-label="Close transaction form"
+                  onClick={closeForm}
+                  aria-label="Close form"
                   className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
                 >
                   <X size={20} />
@@ -106,42 +137,95 @@ function Transactions() {
               </div>
 
               <TransactionForm
-                onAdd={handleAdd}
-                onCancel={() => setShowForm(false)}
+                key={editingTransaction?.id ?? "new-transaction"}
+                initialTransaction={editingTransaction}
+                onAdd={handleSave}
+                onCancel={closeForm}
               />
             </section>
           )}
 
-          <section className="mb-5 flex flex-col gap-3 sm:flex-row">
-            <div className="flex flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-              <Search size={18} className="text-slate-400" />
+          <section className="mb-5 space-y-3">
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="flex flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                <Search size={18} className="text-slate-400" />
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search description or category..."
+                  aria-label="Search transactions"
+                  className="w-full bg-transparent text-sm outline-none"
+                />
+              </div>
 
-              <input
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search description or category..."
-                aria-label="Search transactions"
-                className="w-full bg-transparent text-sm outline-none"
-              />
+              <select
+                value={typeFilter}
+                onChange={(event) => setTypeFilter(event.target.value)}
+                aria-label="Filter transaction type"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
+              >
+                <option value="all">All types</option>
+                <option value="income">Income only</option>
+                <option value="expense">Expenses only</option>
+              </select>
             </div>
 
-            <select
-              value={typeFilter}
-              onChange={(event) => setTypeFilter(event.target.value)}
-              aria-label="Filter transaction type"
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
-            >
-              <option value="all">All transactions</option>
-              <option value="income">Income only</option>
-              <option value="expense">Expenses only</option>
-            </select>
+            <div className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-3 sm:items-end">
+              <div>
+                <label
+                  htmlFor="startDate"
+                  className="flex items-center gap-2 text-sm font-medium text-slate-600"
+                >
+                  <CalendarDays size={16} />
+                  From
+                </label>
+                <input
+                  id="startDate"
+                  type="date"
+                  value={startDate}
+                  max={endDate || undefined}
+                  onChange={(event) => setStartDate(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="endDate"
+                  className="text-sm font-medium text-slate-600"
+                >
+                  To
+                </label>
+                <input
+                  id="endDate"
+                  type="date"
+                  value={endDate}
+                  min={startDate || undefined}
+                  max={new Date().toLocaleDateString("en-CA")}
+                  onChange={(event) => setEndDate(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setStartDate("");
+                  setEndDate("");
+                  setSearch("");
+                  setTypeFilter("all");
+                }}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              >
+                Clear filters
+              </button>
+            </div>
           </section>
 
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
               <h2 className="font-semibold text-slate-900">All Transactions</h2>
-
               <span className="text-sm text-slate-500">
                 {filteredTransactions.length} records
               </span>
@@ -153,12 +237,12 @@ function Transactions() {
                   No transactions found
                 </p>
                 <p className="mt-2 text-sm text-slate-500">
-                  Try another search or add a transaction.
+                  Try changing your filters or add a transaction.
                 </p>
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[650px] text-left">
+                <table className="w-full min-w-[720px] text-left">
                   <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                     <tr>
                       <th className="px-5 py-4 font-medium">Description</th>
@@ -169,7 +253,7 @@ function Transactions() {
                         Amount
                       </th>
                       <th className="px-5 py-4 text-right font-medium">
-                        Action
+                        Actions
                       </th>
                     </tr>
                   </thead>
@@ -213,16 +297,28 @@ function Transactions() {
                             {currency.format(transaction.amount)}
                           </td>
 
-                          <td className="px-5 py-4 text-right">
-                            <button
-                              type="button"
-                              onClick={() => handleDelete(transaction.id)}
-                              aria-label={`Delete ${transaction.title}`}
-                              title="Delete transaction"
-                              className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
-                            >
-                              <Trash2 size={17} />
-                            </button>
+                          <td className="px-5 py-4">
+                            <div className="flex justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() => openEditForm(transaction)}
+                                aria-label={`Edit ${transaction.title}`}
+                                title="Edit transaction"
+                                className="rounded-lg p-2 text-slate-400 hover:bg-emerald-50 hover:text-emerald-700"
+                              >
+                                <Pencil size={17} />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDelete(transaction.id)}
+                                aria-label={`Delete ${transaction.title}`}
+                                title="Delete transaction"
+                                className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                              >
+                                <Trash2 size={17} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );

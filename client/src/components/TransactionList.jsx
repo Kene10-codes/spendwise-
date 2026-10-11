@@ -1,10 +1,5 @@
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
-
-const currency = new Intl.NumberFormat("en-NG", {
-  style: "currency",
-  currency: "NGN",
-  maximumFractionDigits: 0,
-});
+import { useCurrency } from "../hooks/useCurrency";
 
 function TransactionList({ transactions }) {
   const recentTransactions = [...transactions]
@@ -69,7 +64,7 @@ function TransactionList({ transactions }) {
                 }`}
               >
                 {isIncome ? "+" : "-"}
-                {currency.format(transaction.amount)}
+                {useCurrency(transaction.amount)}
               </p>
             </div>
           );
