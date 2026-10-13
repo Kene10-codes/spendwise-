@@ -1,26 +1,65 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Plus, Search, Trash2, Pencil, X, CalendarDays } from "lucide-react";
 
 import { useFinance } from "../hooks/useFinance";
+import { useCurrency } from "../hooks/useCurrency";
 import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
 import TransactionForm from "../components/TransactionForm";
+import {
+  getTransactions,
+  createTransaction,
+  updateTransaction,
+  deleteTransaction as deleteTransactionAPI,
+} from "../services/transactionService";
 
-const currency = new Intl.NumberFormat("en-NG", {
-  style: "currency",
-  currency: "NGN",
-  maximumFractionDigits: 2,
-});
 
 function Transactions() {
   const { state, dispatch } = useFinance();
+  const formatCurrency = useCurrency();
 
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadTransactions() {
+      try {
+        setLoading(true);
+        setApiError("");
+
+        const transactions = await getTransactions();
+
+        if (!cancelled) {
+          dispatch({
+            type: "SET_TRANSACTIONS",
+            payload: transactions,
+          });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setApiError(error.message || "Failed to load transactions.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadTransactions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dispatch]);
 
   function openAddForm() {
     setEditingTransaction(null);
@@ -37,32 +76,57 @@ function Transactions() {
     setEditingTransaction(null);
   }
 
-  function handleSave(transaction) {
-    if (editingTransaction) {
-      dispatch({
-        type: "UPDATE_TRANSACTION",
-        payload: transaction,
-      });
-    } else {
-      dispatch({
-        type: "ADD_TRANSACTION",
-        payload: transaction,
-      });
-    }
+  async function handleSave(transaction) {
+    try {
+      setApiError("");
 
-    closeForm();
+      if (editingTransaction) {
+        // Update the existing transaction in MongoDB
+        const updatedTransaction = await updateTransaction(
+          editingTransaction.id,
+          transaction,
+        );
+
+        dispatch({
+          type: "UPDATE_TRANSACTION",
+          payload: updatedTransaction,
+        });
+      } else {
+        // Create a new transaction in MongoDB
+        const savedTransaction = await createTransaction(transaction);
+
+        dispatch({
+          type: "ADD_TRANSACTION",
+          payload: savedTransaction,
+        });
+      }
+
+      closeForm();
+    } catch (error) {
+      setApiError(error.message || "Failed to save transaction.");
+    }
   }
 
-  function handleDelete(id) {
+  async function handleDelete(id) {
     const confirmed = window.confirm(
       "Are you sure you want to delete this transaction?",
     );
 
-    if (confirmed) {
+    if (!confirmed) return;
+
+    try {
+      setApiError("");
+
+      // Delete from MongoDB first
+      await deleteTransactionAPI(id);
+
+      // Update React state only after successful deletion
       dispatch({
         type: "DELETE_TRANSACTION",
         payload: id,
       });
+    } catch (error) {
+      setApiError(error.message || "Failed to delete transaction.");
     }
   }
 
@@ -89,6 +153,9 @@ function Transactions() {
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [state.transactions, search, typeFilter, startDate, endDate]);
 
+  if (loading) {
+    return <p className="p-6">Loading transactions...</p>;
+  }
   return (
     <div className="min-h-screen bg-slate-50 lg:flex dark:bg-slate-950 dark:text-slate-100">
       <div className="hidden lg:block">
@@ -99,6 +166,14 @@ function Transactions() {
         <Header />
 
         <main className="p-5 sm:p-8">
+          {apiError && (
+            <div
+              role="alert"
+              className="mb-5 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700"
+            >
+              {apiError}
+            </div>
+          )}
           <div className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
             <div>
               <h1 className="text-2xl font-bold text-slate-900">
@@ -294,7 +369,7 @@ function Transactions() {
                             }`}
                           >
                             {isIncome ? "+" : "-"}
-                            {currency.format(transaction.amount)}
+                            {formatCurrency(transaction.amount)}
                           </td>
 
                           <td className="px-5 py-4">

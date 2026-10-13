@@ -6,6 +6,12 @@ export function financeReducer(state, action) {
         transactions: [action.payload, ...state.transactions],
       };
 
+    case "SET_TRANSACTIONS":
+      return {
+        ...state,
+        transactions: action.payload,
+      };
+
     case "DELETE_TRANSACTION":
       return {
         ...state,
