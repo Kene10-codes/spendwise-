@@ -25,7 +25,12 @@ const initialForm = {
   date: today,
 };
 
-function TransactionForm({ onAdd, onCancel, initialTransaction = null }) {
+function TransactionForm({
+  onAdd,
+  onCancel,
+  initialTransaction = null,
+  saving = false,
+}) {
   const { state } = useFinance();
   const [form, setForm] = useState(() => {
     if (!initialTransaction) return initialForm;
@@ -65,7 +70,7 @@ function TransactionForm({ onAdd, onCancel, initialTransaction = null }) {
     setError("");
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
 
     const amount = Number(form.amount);
@@ -89,14 +94,20 @@ function TransactionForm({ onAdd, onCancel, initialTransaction = null }) {
       return;
     }
 
-    onAdd({
-      ...(initialTransaction ? { id: initialTransaction.id } : {}),
-      title: form.title.trim(),
-      type: form.type,
-      category: form.category,
-      amount,
-      date: form.date,
-    });
+    try {
+      setError("");
+
+      await onAdd({
+        ...(initialTransaction ? { id: initialTransaction.id } : {}),
+        title: form.title.trim(),
+        type: form.type,
+        category: form.category,
+        amount,
+        date: form.date,
+      });
+    } catch (error) {
+      setError(error.message || "Failed to save transaction.");
+    }
   }
 
   return (
@@ -196,6 +207,7 @@ function TransactionForm({ onAdd, onCancel, initialTransaction = null }) {
 
       <div className="flex justify-end gap-3 pt-2">
         <button
+          disabled={saving}
           type="button"
           onClick={onCancel}
           className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm hover:bg-slate-50"
@@ -205,9 +217,14 @@ function TransactionForm({ onAdd, onCancel, initialTransaction = null }) {
 
         <button
           type="submit"
-          className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+          disabled={saving}
+          className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {initialTransaction ? "Save Changes" : "Add Transaction"}
+          {saving
+            ? "Saving..."
+            : initialTransaction
+              ? "Save Changes"
+              : "Add Transaction"}
         </button>
       </div>
     </form>

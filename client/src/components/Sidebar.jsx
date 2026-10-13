@@ -7,6 +7,8 @@ import {
   Settings,
   CircleDollarSign,
 } from "lucide-react";
+import { useAuth } from "../hooks/useAuth";
+import { useNavigate } from "react-router-dom";
 
 const links = [
   { name: "Dashboard", path: "/", icon: LayoutDashboard },
@@ -17,6 +19,13 @@ const links = [
 ];
 
 function Sidebar() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  function handleLogout() {
+    logout();
+    navigate("/login", { replace: true });
+  }
   return (
     <aside className="flex min-h-screen w-64 shrink-0 flex-col border-r border-slate-200 bg-white p-5">
       <div className="mb-10 flex items-center gap-3">
@@ -54,11 +63,25 @@ function Sidebar() {
         ))}
       </nav>
 
-      <div className="mt-auto rounded-2xl bg-slate-900 p-4 text-white">
+      <div className="mt-8 rounded-2xl bg-slate-900 p-4 text-white">
         <p className="text-sm font-semibold">Build better habits</p>
         <p className="mt-2 text-xs leading-5 text-slate-300">
           Track your spending and make every naira count.
         </p>
+      </div>
+
+      <div className="mt-auto border-t border-slate-200 p-4 dark:border-slate-800">
+        <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
+          {user?.name || "SpendWise User"}
+        </p>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="w-full rounded-lg px-4 py-3 text-left text-sm font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950"
+        >
+          Log out
+        </button>
       </div>
     </aside>
   );

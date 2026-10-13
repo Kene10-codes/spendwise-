@@ -29,6 +29,15 @@ function Settings() {
     setForm(savedSettings);
   }, [state.settings]);
 
+  useEffect(() => {
+    const savedTheme =
+      state.settings?.theme ||
+      localStorage.getItem("spendwise-theme") ||
+      "light";
+
+    document.documentElement.classList.toggle("dark", savedTheme === "dark");
+  }, [state.settings?.theme]);
+
   function handleChange(event) {
     const { name, value } = event.target;
 
@@ -45,6 +54,10 @@ function Settings() {
       type: "UPDATE_SETTINGS",
       payload: form,
     });
+
+    document.documentElement.classList.toggle("dark", form.theme === "dark");
+
+    localStorage.setItem("spendwise-theme", form.theme);
 
     setMessage("Settings saved successfully.");
   }
@@ -184,8 +197,8 @@ function Settings() {
                     key={theme}
                     className={`flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-3 ${
                       form.theme === theme
-                        ? "border-blue-600 bg-blue-50"
-                        : "border-slate-200"
+                        ? "border-blue-600 bg-blue-50 text-blue-600"
+                        : "border-slate-200 text-blue-600"
                     }`}
                   >
                     <input

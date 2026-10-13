@@ -30,17 +30,26 @@ export function financeReducer(state, action) {
         ),
       };
 
+    case "SET_BUDGETS":
+      return {
+        ...state,
+        budgets: action.payload,
+      };
+
     case "ADD_BUDGET":
       return {
         ...state,
-        budgets: [...state.budgets, action.payload],
+        budgets: [...(state.budgets || []), action.payload],
       };
 
     case "DELETE_BUDGET":
       return {
         ...state,
-        budgets: state.budgets.filter((budget) => budget.id !== action.payload),
+        budgets: (state.budgets || []).filter(
+          (budget) => budget.id !== action.payload
+        ),
       };
+
 
     case "UPDATE_SETTINGS":
       return {

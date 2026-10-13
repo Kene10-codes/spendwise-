@@ -11,7 +11,9 @@ router.use(authMiddleware); // Apply authentication middleware to all transactio
 // Retrieve all transactions
 router.get("/", async (req, res) => {
   try {
-    const transactions = await Transaction.find().sort({ date: -1 });
+    const transactions = await Transaction.find({
+      owner: req.user.id,
+    }).sort({ date: -1 });
 
     res.status(200).json({
       success: true,

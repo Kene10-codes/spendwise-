@@ -1,4 +1,3 @@
-
 import { useMemo } from "react";
 import { useFinance } from "./useFinance";
 
@@ -18,4 +17,4 @@ function useCurrency() {
   return formatCurrency;
 }
 
-export {useCurrency}
+export { useCurrency };

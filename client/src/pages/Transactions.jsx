@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { Plus, Search, Trash2, Pencil, X, CalendarDays } from "lucide-react";
 
 import { useFinance } from "../hooks/useFinance";
@@ -6,60 +6,26 @@ import { useCurrency } from "../hooks/useCurrency";
 import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
 import TransactionForm from "../components/TransactionForm";
-import {
-  getTransactions,
-  createTransaction,
-  updateTransaction,
-  deleteTransaction as deleteTransactionAPI,
-} from "../services/transactionService";
-
 
 function Transactions() {
-  const { state, dispatch } = useFinance();
-  const formatCurrency = useCurrency();
+  const {
+    state,
+    addTransaction,
+    editTransaction,
+    removeTransaction,
+    transactionsLoading,
+    transactionsError,
+  } = useFinance();
 
-  const [loading, setLoading] = useState(true);
+  const formatCurrency = useCurrency();
   const [apiError, setApiError] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadTransactions() {
-      try {
-        setLoading(true);
-        setApiError("");
-
-        const transactions = await getTransactions();
-
-        if (!cancelled) {
-          dispatch({
-            type: "SET_TRANSACTIONS",
-            payload: transactions,
-          });
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setApiError(error.message || "Failed to load transactions.");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadTransactions();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [dispatch]);
 
   function openAddForm() {
     setEditingTransaction(null);
@@ -76,36 +42,24 @@ function Transactions() {
     setEditingTransaction(null);
   }
 
-  async function handleSave(transaction) {
-    try {
-      setApiError("");
+ async function handleSave(transaction) {
+  try {
+    setApiError("");
+    setSaving(true);
 
-      if (editingTransaction) {
-        // Update the existing transaction in MongoDB
-        const updatedTransaction = await updateTransaction(
-          editingTransaction.id,
-          transaction,
-        );
-
-        dispatch({
-          type: "UPDATE_TRANSACTION",
-          payload: updatedTransaction,
-        });
-      } else {
-        // Create a new transaction in MongoDB
-        const savedTransaction = await createTransaction(transaction);
-
-        dispatch({
-          type: "ADD_TRANSACTION",
-          payload: savedTransaction,
-        });
-      }
-
-      closeForm();
-    } catch (error) {
-      setApiError(error.message || "Failed to save transaction.");
+    if (editingTransaction) {
+      await editTransaction(editingTransaction.id, transaction);
+    } else {
+      await addTransaction(transaction);
     }
+
+    closeForm();
+  } catch (error) {
+    setApiError(error.message || "Failed to save transaction.");
+  } finally {
+    setSaving(false);
   }
+}
 
   async function handleDelete(id) {
     const confirmed = window.confirm(
@@ -116,20 +70,11 @@ function Transactions() {
 
     try {
       setApiError("");
-
-      // Delete from MongoDB first
-      await deleteTransactionAPI(id);
-
-      // Update React state only after successful deletion
-      dispatch({
-        type: "DELETE_TRANSACTION",
-        payload: id,
-      });
+      await removeTransaction(id);
     } catch (error) {
       setApiError(error.message || "Failed to delete transaction.");
     }
   }
-
   const filteredTransactions = useMemo(() => {
     const query = search.trim().toLowerCase();
 
@@ -153,7 +98,7 @@ function Transactions() {
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [state.transactions, search, typeFilter, startDate, endDate]);
 
-  if (loading) {
+  if (transactionsLoading) {
     return <p className="p-6">Loading transactions...</p>;
   }
   return (
@@ -166,12 +111,12 @@ function Transactions() {
         <Header />
 
         <main className="p-5 sm:p-8">
-          {apiError && (
+          {(apiError || transactionsError) && (
             <div
               role="alert"
               className="mb-5 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700"
             >
-              {apiError}
+              {apiError || transactionsError}
             </div>
           )}
           <div className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -216,6 +161,7 @@ function Transactions() {
                 initialTransaction={editingTransaction}
                 onAdd={handleSave}
                 onCancel={closeForm}
+                saving={saving}
               />
             </section>
           )}

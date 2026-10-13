@@ -1,10 +1,18 @@
+
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-
 * {
   box-sizing: border-box;
+}
+
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
 }
 
 body {
@@ -12,10 +20,18 @@ body {
   font-family: Inter, system-ui, sans-serif;
   background: #f8fafc;
   color: #0f172a;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+html.dark body {
+  background: #020617;
+  color: #f1f5f9;
 }
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
+  color: #020617;
 }

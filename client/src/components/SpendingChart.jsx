@@ -9,8 +9,8 @@ const COLORS = [
   "#0891b2",
 ];
 
-
-export default function SpendingChart({ transactions }) {
+function SpendingChart({ transactions }) {
+  const formatCurrency = useCurrency();
   const categoryTotals = transactions
     .filter((transaction) => transaction.type === "expense")
     .reduce((totals, transaction) => {
@@ -58,7 +58,7 @@ export default function SpendingChart({ transactions }) {
                   ))}
                 </Pie>
 
-                <Tooltip formatter={(value) => useCurrency(value)} />
+                <Tooltip formatter={(value) => formatCurrency(value)} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -75,7 +75,7 @@ export default function SpendingChart({ transactions }) {
                 <div className="min-w-0">
                   <p className="truncate text-xs text-slate-500">{item.name}</p>
                   <p className="text-sm font-semibold text-slate-800">
-                    {useCurrency(item.value)}
+                    {formatCurrency(item.value)}
                   </p>
                 </div>
               </div>
@@ -86,3 +86,5 @@ export default function SpendingChart({ transactions }) {
     </section>
   );
 }
+
+export default SpendingChart;
