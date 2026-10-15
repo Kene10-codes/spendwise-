@@ -42,14 +42,23 @@ export function financeReducer(state, action) {
         budgets: [...(state.budgets || []), action.payload],
       };
 
+    case "UPDATE_BUDGET":
+      return {
+        ...state,
+        budgets: (state.budgets || []).map((budget) =>
+          budget.id === action.payload.id
+            ? { ...budget, ...action.payload }
+            : budget,
+        ),
+      };
+
     case "DELETE_BUDGET":
       return {
         ...state,
         budgets: (state.budgets || []).filter(
-          (budget) => budget.id !== action.payload
+          (budget) => budget.id !== action.payload,
         ),
       };
-
 
     case "UPDATE_SETTINGS":
       return {

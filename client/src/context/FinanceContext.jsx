@@ -1,4 +1,3 @@
-
 import { useEffect, useReducer, useState } from "react";
 
 import { financeReducer } from "../reducers/financeReducer";
@@ -13,6 +12,13 @@ import {
   deleteTransaction,
 } from "../services/transactionService";
 
+import {
+  getBudgets,
+  createBudget,
+  updateBudget,
+  deleteBudget,
+} from "../services/budgetService";
+
 const STORAGE_KEY = "spendwise-finance-data";
 
 function getInitialState() {
@@ -21,12 +27,9 @@ function getInitialState() {
     const parsedData = savedData ? JSON.parse(savedData) : {};
 
     return {
-      // Transactions are loaded from MongoDB after authentication.
+      // Transactions and budgets are loaded from MongoDB.
       transactions: [],
-
-      budgets: Array.isArray(parsedData.budgets)
-        ? parsedData.budgets
-        : initialData.budgets,
+      budgets: [],
 
       settings: {
         name: "SpendWise User",
@@ -42,7 +45,7 @@ function getInitialState() {
 
     return {
       transactions: [],
-      budgets: initialData.budgets || [],
+      budgets: [],
       settings: {
         name: "SpendWise User",
         email: "",
@@ -62,34 +65,39 @@ function FinanceProvider({ children }) {
   );
 
   const { token, user } = useAuth();
+
   const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [transactionsError, setTransactionsError] = useState("");
 
-  // Save budgets and settings locally, not transactions.
+  const [budgetsLoading, setBudgetsLoading] = useState(false);
+  const [budgetsError, setBudgetsError] = useState("");
+
+  // Persist settings locally. Transactions and budgets belong in MongoDB.
   useEffect(() => {
     try {
       localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
-          budgets: state.budgets,
           settings: state.settings,
         }),
       );
     } catch (error) {
-      console.error("Failed to save SpendWise data:", error);
+      console.error("Failed to save SpendWise settings:", error);
     }
-  }, [state.budgets, state.settings]);
+  }, [state.settings]);
 
   // Load the authenticated user's transactions from MongoDB.
   useEffect(() => {
     let cancelled = false;
 
     async function loadTransactions() {
+      // Clear previous data when the authentication context changes.
+      dispatch({
+        type: "SET_TRANSACTIONS",
+        payload: [],
+      });
+
       if (!token) {
-        dispatch({
-          type: "SET_TRANSACTIONS",
-          payload: [],
-        });
         setTransactionsError("");
         setTransactionsLoading(false);
         return;
@@ -119,6 +127,53 @@ function FinanceProvider({ children }) {
     }
 
     loadTransactions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, user?.id]);
+
+  // Load the authenticated user's budgets from MongoDB.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadBudgets() {
+      // Never display a previous user's budgets while loading.
+      dispatch({
+        type: "SET_BUDGETS",
+        payload: [],
+      });
+
+      if (!token) {
+        setBudgetsError("");
+        setBudgetsLoading(false);
+        return;
+      }
+
+      setBudgetsLoading(true);
+      setBudgetsError("");
+
+      try {
+        const budgets = await getBudgets();
+
+        if (!cancelled) {
+          dispatch({
+            type: "SET_BUDGETS",
+            payload: budgets,
+          });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setBudgetsError(error.message || "Failed to load budgets.");
+        }
+      } finally {
+        if (!cancelled) {
+          setBudgetsLoading(false);
+        }
+      }
+    }
+
+    loadBudgets();
 
     return () => {
       cancelled = true;
@@ -159,8 +214,44 @@ function FinanceProvider({ children }) {
     });
   }
 
+  // Create a budget in MongoDB, then update React state.
+  async function addBudget(budget) {
+    const savedBudget = await createBudget(budget);
+
+    dispatch({
+      type: "ADD_BUDGET",
+      payload: savedBudget,
+    });
+
+    return savedBudget;
+  }
+
+  // Edit a budget in MongoDB, then update React state.
+  async function editBudget(id, updates) {
+    const updatedBudget = await updateBudget(id, updates);
+
+    dispatch({
+      type: "UPDATE_BUDGET",
+      payload: updatedBudget,
+    });
+
+    return updatedBudget;
+  }
+
+  // Delete a budget from MongoDB, then update React state.
+  async function removeBudget(id) {
+    await deleteBudget(id);
+
+    dispatch({
+      type: "DELETE_BUDGET",
+      payload: id,
+    });
+  }
+
+  // Apply the user's selected theme.
   useEffect(() => {
     const isDark = state.settings?.theme === "dark";
+
     document.documentElement.classList.toggle("dark", isDark);
   }, [state.settings?.theme]);
 
@@ -169,11 +260,20 @@ function FinanceProvider({ children }) {
       value={{
         state,
         dispatch,
+
+        // Transaction methods and states.
         addTransaction,
         editTransaction,
         removeTransaction,
         transactionsLoading,
         transactionsError,
+
+        // Budget methods and states.
+        addBudget,
+        editBudget,
+        removeBudget,
+        budgetsLoading,
+        budgetsError,
       }}
     >
       {children}

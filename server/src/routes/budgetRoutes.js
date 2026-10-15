@@ -103,6 +103,74 @@ router.post("/", async (req, res) => {
   }
 });
 
+
+/**
+ * PATCH /api/budgets/:id
+ * Update an existing budget's spending limit.
+ */
+router.patch("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { limit } = req.body;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid budget ID.",
+      });
+    }
+
+    const numericLimit = Number(limit);
+
+    if (
+      limit === "" ||
+      limit === null ||
+      limit === undefined ||
+      !Number.isFinite(numericLimit) ||
+      numericLimit <= 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Budget limit must be greater than zero.",
+      });
+    }
+
+    const budget = await Budget.findOneAndUpdate(
+      {
+        _id: id,
+        owner: req.user.id,
+      },
+      {
+        $set: { limit: numericLimit },
+      },
+      {
+        new: true,
+        runValidators: true,
+      },
+    );
+
+    if (!budget) {
+      return res.status(404).json({
+        success: false,
+        message: "Budget not found.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Budget updated successfully.",
+      data: formatBudget(budget),
+    });
+  } catch (error) {
+    console.error("Failed to update budget:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update budget.",
+    });
+  }
+});
+
 // DELETE /api/budgets/:id
 router.delete("/:id", async (req, res) => {
   try {

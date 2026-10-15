@@ -51,6 +51,20 @@ export async function createBudget(budget) {
   return normalizeBudget(result.data);
 }
 
+
+// PATCH /api/budgets/:id
+export async function updateBudget(id, updates) {
+  const result = await requestApi(`${API_URL}/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      limit: Number(updates.limit),
+    }),
+  });
+
+  return normalizeBudget(result.data);
+}
+
+
 // DELETE /api/budgets/:id
 export async function deleteBudget(id) {
   return requestApi(`${API_URL}/${id}`, {

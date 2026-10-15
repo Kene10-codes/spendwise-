@@ -5,6 +5,7 @@ import {
   Wallet,
   AlertTriangle,
   CheckCircle2,
+  Pencil,
 } from "lucide-react";
 
 import Sidebar from "../components/Sidebar";
@@ -29,14 +30,22 @@ function getCurrentMonth() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
-
 function Budgets() {
-  const { state, dispatch } = useFinance();
+  const { state, addBudget, removeBudget, budgetsLoading, budgetsError } =
+    useFinance();
+
+  const formatCurrency = useCurrency();
 
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth);
   const [showForm, setShowForm] = useState(false);
   const [category, setCategory] = useState("");
   const [limit, setLimit] = useState("");
+
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [editingBudgetId, setEditingBudgetId] = useState(null);
+  const [deletingBudgetId, setDeletingBudgetId] = useState(null);
 
   const budgets = state.budgets || [];
   const transactions = state.transactions || [];
@@ -52,7 +61,7 @@ function Budgets() {
           (transaction) =>
             transaction.type === "expense" &&
             transaction.category === budget.category &&
-            transaction.date.startsWith(selectedMonth),
+            transaction.date?.startsWith(selectedMonth),
         )
         .reduce((total, transaction) => total + Number(transaction.amount), 0);
 
@@ -89,40 +98,85 @@ function Budgets() {
     (budget) => budget.percentage >= 100,
   ).length;
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
+    setFormError("");
 
     const numericLimit = Number(limit);
 
-    if (!category || !Number.isFinite(numericLimit) || numericLimit <= 0) {
+    if (!category) {
+      setFormError("Please select a category.");
       return;
     }
 
-    dispatch({
-      type: "ADD_BUDGET",
-      payload: {
-        id: crypto.randomUUID(),
-        category,
-        limit: numericLimit,
-      },
-    });
+    if (
+      limit.trim() === "" ||
+      !Number.isFinite(numericLimit) ||
+      numericLimit <= 0
+    ) {
+      setFormError("Enter a budget limit greater than zero.");
+      return;
+    }
 
-    setCategory("");
-    setLimit("");
-    setShowForm(false);
+    if (
+      !editingBudgetId &&
+      budgets.some((budget) => budget.category === category)
+    ) {
+      setFormError("You already have a budget for this category.");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      if (editingBudgetId) {
+        await editBudget(editingBudgetId, {
+          limit: numericLimit,
+        });
+      } else {
+        await addBudget({
+          category,
+          limit: numericLimit,
+        });
+      }
+
+      setCategory("");
+      setLimit("");
+      setEditingBudgetId(null);
+      setShowForm(false);
+      setFormError("");
+    } catch (error) {
+      setFormError(error.message || "Failed to save budget.");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function handleDelete(id) {
+  function handleEdit(budget) {
+    setEditingBudgetId(budget.id);
+    setCategory(budget.category);
+    setLimit(String(budget.limit));
+    setFormError("");
+    setShowForm(true);
+  }
+
+  async function handleDelete(id) {
     const confirmed = window.confirm(
       "Are you sure you want to delete this budget?",
     );
 
     if (!confirmed) return;
 
-    dispatch({
-      type: "DELETE_BUDGET",
-      payload: id,
-    });
+    setDeleteError("");
+    setDeletingBudgetId(id);
+
+    try {
+      await removeBudget(id);
+    } catch (error) {
+      setDeleteError(error.message || "Failed to delete budget.");
+    } finally {
+      setDeletingBudgetId(null);
+    }
   }
 
   return (
@@ -138,6 +192,7 @@ function Budgets() {
               <h1 className="text-2xl font-bold text-slate-900">
                 Monthly Budgets
               </h1>
+
               <p className="mt-1 text-sm text-slate-500">
                 Set spending limits and keep your finances on track.
               </p>
@@ -153,7 +208,11 @@ function Budgets() {
               />
 
               <button
-                onClick={() => setShowForm(!showForm)}
+                type="button"
+                onClick={() => {
+                  setShowForm(!showForm);
+                  setFormError("");
+                }}
                 className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
               >
                 <Plus size={18} />
@@ -162,11 +221,32 @@ function Budgets() {
             </div>
           </div>
 
+          {budgetsError && (
+            <div
+              role="alert"
+              className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700"
+            >
+              Could not load budgets: {budgetsError}
+            </div>
+          )}
+
+          {deleteError && (
+            <div
+              role="alert"
+              className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700"
+            >
+              {deleteError}
+            </div>
+          )}
+
           {showForm && (
             <form
               onSubmit={handleSubmit}
               className="grid gap-4 rounded-xl border border-slate-200 bg-white p-5 sm:grid-cols-3"
             >
+              <h2 className="text-lg font-semibold sm:col-span-3">
+                {editingBudgetId ? "Edit Budget" : "Create Budget"}
+              </h2>
               <div>
                 <label className="mb-2 block text-sm font-medium">
                   Category
@@ -176,15 +256,29 @@ function Budgets() {
                   value={category}
                   onChange={(event) => setCategory(event.target.value)}
                   required
+                  disabled={
+                    saving || budgetsLoading || Boolean(editingBudgetId)
+                  }
                   className="w-full rounded-lg border border-slate-200 p-3"
                 >
                   <option value="">Choose category</option>
 
-                  {availableCategories.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
+                  {categories
+                    .filter(
+                      (item) =>
+                        !budgets.some((budget) => budget.category === item) ||
+                        (editingBudgetId &&
+                          budgets.some(
+                            (budget) =>
+                              budget.id === editingBudgetId &&
+                              budget.category === item,
+                          )),
+                    )
+                    .map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
                 </select>
 
                 {availableCategories.length === 0 && (
@@ -201,11 +295,12 @@ function Budgets() {
 
                 <input
                   type="number"
-                  min="1"
+                  min="0.01"
                   step="any"
                   value={limit}
                   onChange={(event) => setLimit(event.target.value)}
                   required
+                  disabled={saving || budgetsLoading}
                   placeholder="e.g. 50000"
                   className="w-full rounded-lg border border-slate-200 p-3"
                 />
@@ -214,33 +309,52 @@ function Budgets() {
               <div className="flex items-end gap-2">
                 <button
                   type="submit"
-                  disabled={availableCategories.length === 0}
+                  disabled={
+                    saving || budgetsLoading || availableCategories.length === 0
+                  }
                   className="rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Save Budget
+                  {saving
+                    ? "Saving..."
+                    : editingBudgetId
+                      ? "Update Budget"
+                      : "Save Budget"}
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => setShowForm(false)}
-                  className="rounded-lg border border-slate-200 px-4 py-3 text-sm"
+                  onClick={() => {
+                    setShowForm(false);
+                    setCategory("");
+                    setLimit("");
+                    setEditingBudgetId(null);
+                    setFormError("");
+                  }}
+                  disabled={saving}
+                  className="rounded-lg border border-slate-200 px-4 py-3 text-sm disabled:opacity-50"
                 >
                   Cancel
                 </button>
               </div>
+
+              {formError && (
+                <p role="alert" className="text-sm text-rose-600 sm:col-span-3">
+                  {formError}
+                </p>
+              )}
             </form>
           )}
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <SummaryCard
               title="Total Monthly Limits"
-              amount={useCurrency(totalBudget)}
+              amount={formatCurrency(totalBudget)}
               icon={<Wallet size={20} />}
             />
 
             <SummaryCard
               title="Spent Against Budgets"
-              amount={useCurrency(totalSpent)}
+              amount={formatCurrency(totalSpent)}
               icon={<Wallet size={20} />}
             />
 
@@ -256,7 +370,11 @@ function Budgets() {
               Category Budgets
             </h2>
 
-            {budgetData.length === 0 ? (
+            {budgetsLoading ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
+                Loading your budgets...
+              </div>
+            ) : budgetData.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
                 <Wallet className="mx-auto mb-3 text-slate-400" size={32} />
 
@@ -292,16 +410,22 @@ function Budgets() {
                           </h3>
 
                           <p className="mt-1 text-sm text-slate-500">
-                            Monthly limit: {useCurrency(budget.limit)}
+                            Monthly limit: {formatCurrency(budget.limit)}
                           </p>
                         </div>
 
                         <button
+                          type="button"
                           onClick={() => handleDelete(budget.id)}
+                          disabled={deletingBudgetId === budget.id}
                           aria-label={`Delete ${budget.category} budget`}
-                          className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                          className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          <Trash2 size={18} />
+                          {deletingBudgetId === budget.id ? (
+                            <span className="text-xs">Deleting...</span>
+                          ) : (
+                            <Trash2 size={18} />
+                          )}
                         </button>
                       </div>
 
@@ -310,7 +434,7 @@ function Budgets() {
                           <p className="text-sm text-slate-500">Amount spent</p>
 
                           <p className="mt-1 text-xl font-bold text-slate-900">
-                            {useCurrency(budget.spent)}
+                            {formatCurrency(budget.spent)}
                           </p>
                         </div>
 
@@ -363,7 +487,7 @@ function Budgets() {
                               className="text-rose-500"
                             />
                             Over by{" "}
-                            {useCurrency(budget.spent - budget.limit)}
+                            {formatCurrency(budget.spent - budget.limit)}
                           </>
                         ) : isNear ? (
                           <>
@@ -371,7 +495,7 @@ function Budgets() {
                               size={16}
                               className="text-amber-500"
                             />
-                            {useCurrency(budget.limit - budget.spent)}{" "}
+                            {formatCurrency(budget.limit - budget.spent)}{" "}
                             remaining
                           </>
                         ) : (
@@ -380,7 +504,7 @@ function Budgets() {
                               size={16}
                               className="text-emerald-500"
                             />
-                            {useCurrency(budget.limit - budget.spent)}{" "}
+                            {formatCurrency(budget.limit - budget.spent)}{" "}
                             remaining
                           </>
                         )}
