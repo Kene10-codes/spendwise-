@@ -176,7 +176,7 @@ function Transactions() {
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Search description or category..."
                   aria-label="Search transactions"
-                  className="w-full bg-transparent text-sm outline-none"
+                  className="w-full text-blue-900 bg-transparent text-sm outline-none"
                 />
               </div>
 
@@ -184,7 +184,7 @@ function Transactions() {
                 value={typeFilter}
                 onChange={(event) => setTypeFilter(event.target.value)}
                 aria-label="Filter transaction type"
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
+                className="rounded-xl text-blue-900 border border-slate-200 bg-white px-3 py-2.5 text-sm"
               >
                 <option value="all">All types</option>
                 <option value="income">Income only</option>
@@ -207,7 +207,7 @@ function Transactions() {
                   value={startDate}
                   max={endDate || undefined}
                   onChange={(event) => setStartDate(event.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  className="mt-1 w-full text-blue-900 rounded-lg border border-slate-200 px-3 py-2 text-sm"
                 />
               </div>
 
@@ -225,7 +225,7 @@ function Transactions() {
                   min={startDate || undefined}
                   max={new Date().toLocaleDateString("en-CA")}
                   onChange={(event) => setEndDate(event.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  className="mt-1 w-full text-blue-900 rounded-lg border border-slate-200 px-3 py-2 text-sm"
                 />
               </div>
 

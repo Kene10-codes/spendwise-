@@ -31,8 +31,14 @@ function getCurrentMonth() {
 }
 
 function Budgets() {
-  const { state, addBudget, removeBudget, budgetsLoading, budgetsError } =
-    useFinance();
+  const {
+    state,
+    addBudget,
+    editBudget,
+    removeBudget,
+    budgetsLoading,
+    budgetsError,
+  } = useFinance();
 
   const formatCurrency = useCurrency();
 
@@ -41,11 +47,12 @@ function Budgets() {
   const [category, setCategory] = useState("");
   const [limit, setLimit] = useState("");
 
+  const [editingBudgetId, setEditingBudgetId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [deletingBudgetId, setDeletingBudgetId] = useState(null);
+
   const [formError, setFormError] = useState("");
   const [deleteError, setDeleteError] = useState("");
-  const [editingBudgetId, setEditingBudgetId] = useState(null);
-  const [deletingBudgetId, setDeletingBudgetId] = useState(null);
 
   const budgets = state.budgets || [];
   const transactions = state.transactions || [];
@@ -54,6 +61,7 @@ function Budgets() {
     (item) => !budgets.some((budget) => budget.category === item),
   );
 
+  // Calculate spending for the selected month.
   const budgetData = useMemo(() => {
     return budgets.map((budget) => {
       const spent = transactions
@@ -65,7 +73,8 @@ function Budgets() {
         )
         .reduce((total, transaction) => total + Number(transaction.amount), 0);
 
-      const percentage = budget.limit > 0 ? (spent / budget.limit) * 100 : 0;
+      const percentage =
+        Number(budget.limit) > 0 ? (spent / Number(budget.limit)) * 100 : 0;
 
       let status = "On track";
 
@@ -98,6 +107,26 @@ function Budgets() {
     (budget) => budget.percentage >= 100,
   ).length;
 
+  // Open a blank form for creating a budget.
+  function handleAddClick() {
+    setEditingBudgetId(null);
+    setCategory("");
+    setLimit("");
+    setFormError("");
+    setShowForm(true);
+  }
+
+  // Open the form with the selected budget's current values.
+  function handleEdit(budget) {
+    setEditingBudgetId(budget.id);
+    setCategory(budget.category);
+    setLimit(String(budget.limit));
+    setFormError("");
+    setDeleteError("");
+    setShowForm(true);
+  }
+
+  // Create a new budget or update an existing budget.
   async function handleSubmit(event) {
     event.preventDefault();
     setFormError("");
@@ -118,6 +147,7 @@ function Budgets() {
       return;
     }
 
+    // Prevent duplicate categories when creating a budget.
     if (
       !editingBudgetId &&
       budgets.some((budget) => budget.category === category)
@@ -152,14 +182,7 @@ function Budgets() {
     }
   }
 
-  function handleEdit(budget) {
-    setEditingBudgetId(budget.id);
-    setCategory(budget.category);
-    setLimit(String(budget.limit));
-    setFormError("");
-    setShowForm(true);
-  }
-
+  // Delete a budget from MongoDB.
   async function handleDelete(id) {
     const confirmed = window.confirm(
       "Are you sure you want to delete this budget?",
@@ -187,9 +210,10 @@ function Budgets() {
         <Header />
 
         <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
+          {/* Page heading and controls */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                 Monthly Budgets
               </h1>
 
@@ -203,16 +227,13 @@ function Budgets() {
                 type="month"
                 value={selectedMonth}
                 onChange={(event) => setSelectedMonth(event.target.value)}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
                 aria-label="Select budget month"
               />
 
               <button
                 type="button"
-                onClick={() => {
-                  setShowForm(!showForm);
-                  setFormError("");
-                }}
+                onClick={handleAddClick}
                 className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
               >
                 <Plus size={18} />
@@ -221,6 +242,7 @@ function Budgets() {
             </div>
           </div>
 
+          {/* API errors */}
           {budgetsError && (
             <div
               role="alert"
@@ -239,27 +261,33 @@ function Budgets() {
             </div>
           )}
 
+          {/* Create and edit form */}
           {showForm && (
             <form
               onSubmit={handleSubmit}
-              className="grid gap-4 rounded-xl border border-slate-200 bg-white p-5 sm:grid-cols-3"
+              className="grid gap-4 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900 sm:grid-cols-3"
             >
-              <h2 className="text-lg font-semibold sm:col-span-3">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 sm:col-span-3">
                 {editingBudgetId ? "Edit Budget" : "Create Budget"}
               </h2>
+
               <div>
-                <label className="mb-2 block text-sm font-medium">
+                <label
+                  htmlFor="budget-category"
+                  className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200"
+                >
                   Category
                 </label>
 
                 <select
+                  id="budget-category"
                   value={category}
                   onChange={(event) => setCategory(event.target.value)}
                   required
                   disabled={
                     saving || budgetsLoading || Boolean(editingBudgetId)
                   }
-                  className="w-full rounded-lg border border-slate-200 p-3"
+                  className="w-full rounded-lg border border-slate-200 bg-white p-3 text-slate-900 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                 >
                   <option value="">Choose category</option>
 
@@ -281,7 +309,7 @@ function Budgets() {
                     ))}
                 </select>
 
-                {availableCategories.length === 0 && (
+                {availableCategories.length === 0 && !editingBudgetId && (
                   <p className="mt-1 text-xs text-amber-600">
                     All available categories already have budgets.
                   </p>
@@ -289,11 +317,15 @@ function Budgets() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium">
+                <label
+                  htmlFor="budget-limit"
+                  className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200"
+                >
                   Monthly limit (₦)
                 </label>
 
                 <input
+                  id="budget-limit"
                   type="number"
                   min="0.01"
                   step="any"
@@ -302,7 +334,7 @@ function Budgets() {
                   required
                   disabled={saving || budgetsLoading}
                   placeholder="e.g. 50000"
-                  className="w-full rounded-lg border border-slate-200 p-3"
+                  className="w-full rounded-lg border border-slate-200 bg-white p-3 text-slate-900 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                 />
               </div>
 
@@ -310,9 +342,11 @@ function Budgets() {
                 <button
                   type="submit"
                   disabled={
-                    saving || budgetsLoading || availableCategories.length === 0
+                    saving ||
+                    budgetsLoading ||
+                    (!editingBudgetId && availableCategories.length === 0)
                   }
-                  className="rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving
                     ? "Saving..."
@@ -331,7 +365,7 @@ function Budgets() {
                     setFormError("");
                   }}
                   disabled={saving}
-                  className="rounded-lg border border-slate-200 px-4 py-3 text-sm disabled:opacity-50"
+                  className="rounded-lg border border-slate-200 px-4 py-3 text-sm text-slate-700 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200"
                 >
                   Cancel
                 </button>
@@ -345,6 +379,7 @@ function Budgets() {
             </form>
           )}
 
+          {/* Summary cards */}
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <SummaryCard
               title="Total Monthly Limits"
@@ -365,20 +400,21 @@ function Budgets() {
             />
           </div>
 
+          {/* Budget cards */}
           <section>
-            <h2 className="mb-4 text-lg font-semibold text-slate-900">
+            <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">
               Category Budgets
             </h2>
 
             {budgetsLoading ? (
-              <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
+              <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900">
                 Loading your budgets...
               </div>
             ) : budgetData.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center">
+              <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center dark:border-slate-700 dark:bg-slate-900">
                 <Wallet className="mx-auto mb-3 text-slate-400" size={32} />
 
-                <p className="font-medium text-slate-700">
+                <p className="font-medium text-slate-700 dark:text-slate-200">
                   No budgets created yet
                 </p>
 
@@ -401,11 +437,11 @@ function Budgets() {
                   return (
                     <article
                       key={budget.id}
-                      className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+                      className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900"
                     >
                       <div className="flex items-start justify-between">
                         <div>
-                          <h3 className="font-semibold text-slate-900">
+                          <h3 className="font-semibold text-slate-900 dark:text-slate-100">
                             {budget.category}
                           </h3>
 
@@ -414,26 +450,40 @@ function Budgets() {
                           </p>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(budget.id)}
-                          disabled={deletingBudgetId === budget.id}
-                          aria-label={`Delete ${budget.category} budget`}
-                          className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {deletingBudgetId === budget.id ? (
-                            <span className="text-xs">Deleting...</span>
-                          ) : (
-                            <Trash2 size={18} />
-                          )}
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleEdit(budget)}
+                            disabled={saving || deletingBudgetId === budget.id}
+                            aria-label={`Edit ${budget.category} budget`}
+                            title="Edit budget"
+                            className="rounded-lg p-2 text-slate-400 hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-slate-800"
+                          >
+                            <Pencil size={18} />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(budget.id)}
+                            disabled={deletingBudgetId === budget.id || saving}
+                            aria-label={`Delete ${budget.category} budget`}
+                            title="Delete budget"
+                            className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-slate-800"
+                          >
+                            {deletingBudgetId === budget.id ? (
+                              <span className="text-xs">Deleting...</span>
+                            ) : (
+                              <Trash2 size={18} />
+                            )}
+                          </button>
+                        </div>
                       </div>
 
                       <div className="mt-5 flex items-end justify-between gap-3">
                         <div>
                           <p className="text-sm text-slate-500">Amount spent</p>
 
-                          <p className="mt-1 text-xl font-bold text-slate-900">
+                          <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">
                             {formatCurrency(budget.spent)}
                           </p>
                         </div>
@@ -458,7 +508,7 @@ function Budgets() {
                       </div>
 
                       <div
-                        className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-100"
+                        className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
                         role="progressbar"
                         aria-label={`${budget.category} budget used`}
                         aria-valuemin={0}
@@ -484,7 +534,7 @@ function Budgets() {
                           <>
                             <AlertTriangle
                               size={16}
-                              className="text-rose-500"
+                              className="shrink-0 text-rose-500"
                             />
                             Over by{" "}
                             {formatCurrency(budget.spent - budget.limit)}
@@ -493,7 +543,7 @@ function Budgets() {
                           <>
                             <AlertTriangle
                               size={16}
-                              className="text-amber-500"
+                              className="shrink-0 text-amber-500"
                             />
                             {formatCurrency(budget.limit - budget.spent)}{" "}
                             remaining
@@ -502,7 +552,7 @@ function Budgets() {
                           <>
                             <CheckCircle2
                               size={16}
-                              className="text-emerald-500"
+                              className="shrink-0 text-emerald-500"
                             />
                             {formatCurrency(budget.limit - budget.spent)}{" "}
                             remaining
@@ -523,13 +573,15 @@ function Budgets() {
 
 function SummaryCard({ title, amount, icon }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-500">{title}</p>
         <span className="text-blue-600">{icon}</span>
       </div>
 
-      <p className="mt-3 text-2xl font-bold text-slate-900">{amount}</p>
+      <p className="mt-3 text-2xl font-bold text-slate-900 dark:text-slate-100">
+        {amount}
+      </p>
     </div>
   );
 }

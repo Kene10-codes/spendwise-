@@ -122,7 +122,7 @@ function Settings() {
                     value={form.name || ""}
                     onChange={handleChange}
                     required
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2.5"
+                    className="w-full text-blue-900 rounded-lg border border-slate-200 px-3 py-2.5"
                   />
                 </div>
 
@@ -136,7 +136,7 @@ function Settings() {
                     name="email"
                     value={form.email || ""}
                     onChange={handleChange}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2.5"
+                    className="w-full text-blue-900 rounded-lg border border-slate-200 px-3 py-2.5"
                     placeholder="you@example.com"
                   />
                 </div>
@@ -163,7 +163,7 @@ function Settings() {
                 name="currency"
                 value={form.currency || "NGN"}
                 onChange={handleChange}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2.5 sm:max-w-sm"
+                className="w-full rounded-lg text-blue-900 border border-slate-200 px-3 py-2.5 sm:max-w-sm"
               >
                 {currencies.map((currency) => (
                   <option key={currency.value} value={currency.value}>

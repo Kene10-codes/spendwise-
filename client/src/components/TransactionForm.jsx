@@ -47,7 +47,7 @@ function TransactionForm({
   const [error, setError] = useState("");
 
   const inputClass =
-    "mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100";
+    "mt-1 w-full rounded-xl text-blue-900 border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100";
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -113,7 +113,7 @@ function TransactionForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="title" className="text-sm font-medium">
+        <label htmlFor="title" className="text-sm font-medium text-blue-900">
           Description
         </label>
         <input
@@ -129,7 +129,7 @@ function TransactionForm({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label htmlFor="type" className="text-sm font-medium">
+          <label htmlFor="type" className="text-sm font-medium text-blue-900">
             Transaction type
           </label>
           <select
@@ -145,7 +145,7 @@ function TransactionForm({
         </div>
 
         <div>
-          <label htmlFor="category" className="text-sm font-medium">
+          <label htmlFor="category" className="text-sm font-medium text-blue-900">
             Category
           </label>
           <select
@@ -166,7 +166,7 @@ function TransactionForm({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label htmlFor="amount" className="text-sm font-medium">
+          <label htmlFor="amount" className="text-sm font-medium text-blue-900">
             Amount ({state.settings.currency})
           </label>
           <input
@@ -183,7 +183,7 @@ function TransactionForm({
         </div>
 
         <div>
-          <label htmlFor="date" className="text-sm font-medium">
+          <label htmlFor="date" className="text-sm font-medium text-blue-900">
             Date
           </label>
           <input
@@ -210,7 +210,7 @@ function TransactionForm({
           disabled={saving}
           type="button"
           onClick={onCancel}
-          className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm hover:bg-slate-50"
+          className="rounded-xl text-blue-900 border border-slate-200 px-4 py-2.5 text-sm hover:bg-slate-50"
         >
           Cancel
         </button>

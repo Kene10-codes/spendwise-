@@ -1,37 +1,60 @@
-
 @import "tailwindcss";
 
+/* Enable dark: utilities when .dark exists on the root element */
 @custom-variant dark (&:where(.dark, .dark *));
 
-* {
-  box-sizing: border-box;
+@theme {
+  --color-ink: #14213d;
+  --color-paper: #f3f5f9;
+  --color-accent: #2f4bff;
+  --color-tint: #dde4f2;
+
+  --font-sans: "Bricolage Grotesque", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
-html {
-  color-scheme: light;
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
+  body {
+    @apply bg-paper font-sans text-ink antialiased;
+    transition:
+      background-color 200ms ease,
+      color 200ms ease;
+  }
+
+  /* Global dark theme */
+  html.dark body {
+    background-color: #020617;
+    color: #f1f5f9;
+  }
 }
 
-html.dark {
-  color-scheme: dark;
+@utility focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
 }
 
-body {
-  margin: 0;
-  font-family: Inter, system-ui, sans-serif;
-  background: #f8fafc;
-  color: #0f172a;
-  transition: background-color 0.2s ease, color 0.2s ease;
-}
+@utility link {
+  text-decoration: underline;
+  text-decoration-color: color-mix(
+    in srgb,
+    var(--color-accent) 40%,
+    transparent
+  );
+  text-underline-offset: 4px;
 
-html.dark body {
-  background: #020617;
-  color: #f1f5f9;
-}
-
-button,
-input,
-select,
-textarea {
-  font: inherit;
-  color: #020617;
+  &:hover {
+    text-decoration-color: var(--color-accent);
+  }
 }

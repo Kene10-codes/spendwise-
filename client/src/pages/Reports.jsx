@@ -1,366 +1,583 @@
 import { useMemo, useState } from "react";
+import { Download } from "lucide-react";
 import {
-  ResponsiveContainer,
   BarChart,
   Bar,
+  PieChart,
+  Pie,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
-  PieChart,
-  Pie,
-  Cell,
+  ResponsiveContainer,
 } from "recharts";
 
 import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
-
 import { useFinance } from "../hooks/useFinance";
 import { useCurrency } from "../hooks/useCurrency";
 
-const COLORS = [
-  "#2563eb",
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+const CHART_COLORS = [
+  "#6366f1",
   "#10b981",
   "#f59e0b",
   "#ef4444",
-  "#8b5cf6",
   "#06b6d4",
-  "#f97316",
+  "#8b5cf6",
+  "#ec4899",
   "#64748b",
 ];
 
-function getCurrentMonth() {
-  const now = new Date();
+const currentDate = new Date();
 
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+function getTransactionDate(transaction) {
+  const value = transaction.date || transaction.createdAt;
+
+  if (!value) return null;
+
+  const parsed = new Date(value);
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 function Reports() {
   const { state } = useFinance();
-
-  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth);
+  const formatCurrency = useCurrency();
 
   const transactions = state.transactions || [];
 
-  const monthlyTransactions = useMemo(
-    () =>
-      transactions.filter((transaction) =>
-        transaction.date.startsWith(selectedMonth),
-      ),
-    [transactions, selectedMonth],
+  const [selectedMonth, setSelectedMonth] = useState(
+    String(currentDate.getMonth()),
   );
+
+  const [selectedYear, setSelectedYear] = useState(
+    String(currentDate.getFullYear()),
+  );
+
+  const years = useMemo(() => {
+    const transactionYears = transactions
+      .map(getTransactionDate)
+      .filter(Boolean)
+      .map((transactionDate) => transactionDate.getFullYear());
+
+    return [...new Set([currentDate.getFullYear(), ...transactionYears])]
+      .sort((a, b) => b - a)
+      .map(String);
+  }, [transactions]);
+
+  const monthlyTransactions = useMemo(() => {
+    return transactions.filter((transaction) => {
+      const transactionDate = getTransactionDate(transaction);
+
+      if (!transactionDate) return false;
+
+      return (
+        transactionDate.getMonth() === Number(selectedMonth) &&
+        transactionDate.getFullYear() === Number(selectedYear)
+      );
+    });
+  }, [transactions, selectedMonth, selectedYear]);
 
   const income = monthlyTransactions
     .filter((transaction) => transaction.type === "income")
-    .reduce((total, transaction) => total + Number(transaction.amount), 0);
+    .reduce((total, transaction) => total + Number(transaction.amount || 0), 0);
 
   const expenses = monthlyTransactions
     .filter((transaction) => transaction.type === "expense")
-    .reduce((total, transaction) => total + Number(transaction.amount), 0);
+    .reduce((total, transaction) => total + Number(transaction.amount || 0), 0);
 
-  const cashFlow = income - expenses;
+  const savings = income - expenses;
+
+  const savingsRate =
+    income > 0 ? ((savings / income) * 100).toFixed(1) : "0.0";
+
+  const comparisonData = [
+    {
+      name: MONTHS[Number(selectedMonth)].slice(0, 3),
+      Income: income,
+      Expenses: expenses,
+    },
+  ];
 
   const categoryData = useMemo(() => {
-    const totals = {};
+    const categoryTotals = {};
 
     monthlyTransactions
       .filter((transaction) => transaction.type === "expense")
       .forEach((transaction) => {
-        totals[transaction.category] =
-          (totals[transaction.category] || 0) + Number(transaction.amount);
+        const category = transaction.category || "Other";
+
+        categoryTotals[category] =
+          (categoryTotals[category] || 0) + Number(transaction.amount || 0);
       });
 
-    return Object.entries(totals)
-      .map(([category, amount]) => ({
-        category,
-        amount,
-      }))
-      .sort((a, b) => b.amount - a.amount);
+    return Object.entries(categoryTotals)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
   }, [monthlyTransactions]);
 
-  const monthlyComparison = useMemo(() => {
-    const results = [];
+  const handleExportCSV = () => {
+    const escapeCSV = (value) => {
+      const text = String(value ?? "");
+      return `"${text.replace(/"/g, '""')}"`;
+    };
 
-    // Include the selected month and the five preceding months.
-    const [year, month] = selectedMonth.split("-").map(Number);
+    const rows = [
+      ["SpendWise Financial Report"],
+      [`Period: ${MONTHS[Number(selectedMonth)]} ${selectedYear}`],
+      [],
+      ["Financial Summary"],
+      ["Total Income", income],
+      ["Total Expenses", expenses],
+      ["Net Savings", savings],
+      ["Savings Rate (%)", savingsRate],
+      [],
+      ["Date", "Description", "Category", "Type", "Amount"],
+      ...monthlyTransactions.map((transaction) => {
+        const transactionDate = getTransactionDate(transaction);
 
-    for (let offset = 5; offset >= 0; offset--) {
-      const date = new Date(year, month - 1 - offset, 1);
+        return [
+          transactionDate ? transactionDate.toLocaleDateString("en-CA") : "",
+          transaction.description || "Transaction",
+          transaction.category || "Other",
+          transaction.type,
+          Number(transaction.amount || 0),
+        ];
+      }),
+    ];
 
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
-        2,
-        "0",
-      )}`;
+    const csvContent = rows
+      .map((row) => row.map(escapeCSV).join(","))
+      .join("\r\n");
 
-      const monthTransactions = transactions.filter((transaction) =>
-        transaction.date.startsWith(key),
-      );
+    // Add a UTF-8 BOM for better Excel compatibility.
+    const blob = new Blob(["\uFEFF", csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
 
-      const monthIncome = monthTransactions
-        .filter((transaction) => transaction.type === "income")
-        .reduce((total, transaction) => total + Number(transaction.amount), 0);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
 
-      const monthExpenses = monthTransactions
-        .filter((transaction) => transaction.type === "expense")
-        .reduce((total, transaction) => total + Number(transaction.amount), 0);
+    link.href = url;
+    link.download = `spendwise-report-${selectedYear}-${String(
+      Number(selectedMonth) + 1,
+    ).padStart(2, "0")}.csv`;
 
-      results.push({
-        month: date.toLocaleDateString("en-US", {
-          month: "short",
-          year: "2-digit",
-        }),
-        Income: monthIncome,
-        Expenses: monthExpenses,
-      });
-    }
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
 
-    return results;
-  }, [transactions, selectedMonth]);
-
-  const savingsRate = income > 0 ? (cashFlow / income) * 100 : 0;
+    URL.revokeObjectURL(url);
+  };
+  const tooltipFormatter = (value) => formatCurrency(Number(value));
 
   return (
     <div className="min-h-screen bg-slate-50 lg:flex dark:bg-slate-950 dark:text-slate-100">
-      <Sidebar />
+      <div className="hidden lg:block">
+        <Sidebar />
+      </div>
 
-      <main className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1">
         <Header />
 
-        <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <main className="p-5 sm:p-8">
+          {/* Page heading */}
+          <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">
-                Reports & Analytics
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                Financial Reports
               </h1>
 
-              <p className="mt-1 text-sm text-slate-500">
-                Understand your income, spending, and cash flow.
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                Understand your income, expenses, and savings over time.
               </p>
             </div>
 
-            <input
-              type="month"
-              value={selectedMonth}
-              onChange={(event) => setSelectedMonth(event.target.value)}
-              aria-label="Select report month"
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-            />
+            <button
+              type="button"
+              onClick={handleExportCSV}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            >
+              <Download size={18} />
+              Export CSV
+            </button>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <SummaryCard
-              title="Total Income"
-              amount={useCurrency(income)}
-              color="text-emerald-600"
-            />
+          {/* Date filters */}
+          <section className="mb-7 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <label
+                htmlFor="report-month"
+                className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
+              >
+                Month
+              </label>
 
-            <SummaryCard
-              title="Total Expenses"
-              amount={useCurrency(expenses)}
-              color="text-rose-600"
-            />
+              <select
+                id="report-month"
+                value={selectedMonth}
+                onChange={(event) => setSelectedMonth(event.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              >
+                {MONTHS.map((month, index) => (
+                  <option key={month} value={String(index)}>
+                    {month}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-            <SummaryCard
-              title="Net Cash Flow"
-              amount={useCurrency(cashFlow)}
-              color={cashFlow >= 0 ? "text-blue-600" : "text-rose-600"}
-            />
+            <div className="flex-1">
+              <label
+                htmlFor="report-year"
+                className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300"
+              >
+                Year
+              </label>
 
-            <SummaryCard
-              title="Savings Rate"
-              amount={`${savingsRate.toFixed(1)}%`}
-              color="text-violet-600"
-            />
-          </div>
-
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="font-semibold text-slate-900">
-              Monthly Income vs. Expenses
-            </h2>
-
-            <p className="mt-1 text-sm text-slate-500">
-              The selected month and five preceding months.
-            </p>
-
-            <div className="mt-6 h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={monthlyComparison}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-
-                  <XAxis dataKey="month" />
-
-                  <YAxis
-                    tickFormatter={(value) => `₦${(value / 1000).toFixed(0)}k`}
-                  />
-
-                  <Tooltip formatter={(value) => useCurrency(value)} />
-
-                  <Legend />
-
-                  <Bar dataKey="Income" fill="#10b981" radius={[4, 4, 0, 0]} />
-
-                  <Bar
-                    dataKey="Expenses"
-                    fill="#ef4444"
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+              <select
+                id="report-year"
+                value={selectedYear}
+                onChange={(event) => setSelectedYear(event.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              >
+                {years.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
             </div>
           </section>
 
-          <div className="grid gap-6 xl:grid-cols-2">
-            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="font-semibold text-slate-900">
-                Spending by Category
+          {/* Summary cards */}
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Monthly Income
+              </p>
+
+              <p className="mt-3 break-words text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                {formatCurrency(income)}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Monthly Expenses
+              </p>
+
+              <p className="mt-3 break-words text-2xl font-bold text-red-600 dark:text-red-400">
+                {formatCurrency(expenses)}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Net Savings
+              </p>
+
+              <p
+                className={`mt-3 break-words text-2xl font-bold ${
+                  savings >= 0
+                    ? "text-indigo-600 dark:text-indigo-400"
+                    : "text-red-600 dark:text-red-400"
+                }`}
+              >
+                {formatCurrency(savings)}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Savings Rate
+              </p>
+
+              <p className="mt-3 text-2xl font-bold text-slate-900 dark:text-white">
+                {savingsRate}%
+              </p>
+            </div>
+          </section>
+
+          {/* Income versus expenses */}
+          <section className="mt-7 grid grid-cols-1 gap-6 xl:grid-cols-2">
+            <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                Income vs. Expenses
               </h2>
 
-              <p className="mt-1 text-sm text-slate-500">
-                Where your money went during the selected month.
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Financial activity for {MONTHS[Number(selectedMonth)]}{" "}
+                {selectedYear}.
+              </p>
+
+              <div className="mt-5 h-72 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={comparisonData}
+                    margin={{ top: 10, right: 10, left: 10, bottom: 5 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      vertical={false}
+                      stroke="#94a3b8"
+                      opacity={0.25}
+                    />
+
+                    <XAxis
+                      dataKey="name"
+                      tick={{ fill: "#94a3b8", fontSize: 12 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+
+                    <YAxis
+                      tick={{ fill: "#94a3b8", fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                      width={75}
+                      tickFormatter={(value) =>
+                        new Intl.NumberFormat("en-NG", {
+                          notation: "compact",
+                          maximumFractionDigits: 1,
+                        }).format(value)
+                      }
+                    />
+
+                    <Tooltip formatter={tooltipFormatter} />
+
+                    <Legend />
+
+                    <Bar
+                      dataKey="Income"
+                      fill="#10b981"
+                      radius={[5, 5, 0, 0]}
+                    />
+
+                    <Bar
+                      dataKey="Expenses"
+                      fill="#ef4444"
+                      radius={[5, 5, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {monthlyTransactions.length === 0 && (
+                <p className="text-center text-sm text-slate-500 dark:text-slate-400">
+                  No transactions recorded for this period.
+                </p>
+              )}
+            </div>
+
+            {/* Expense breakdown */}
+            <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                Expense Breakdown
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                See which categories account for your spending.
               </p>
 
               {categoryData.length === 0 ? (
-                <EmptyChart />
+                <div className="flex h-72 items-center justify-center text-center text-sm text-slate-500 dark:text-slate-400">
+                  No expense data available for this period.
+                </div>
               ) : (
                 <>
-                  <div className="mt-4 h-64">
+                  <div className="mt-4 h-64 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
                           data={categoryData}
-                          dataKey="amount"
-                          nameKey="category"
+                          dataKey="value"
+                          nameKey="name"
                           cx="50%"
                           cy="50%"
                           outerRadius={90}
-                          label={({ percent }) =>
-                            `${(percent * 100).toFixed(0)}%`
-                          }
+                          innerRadius={48}
+                          paddingAngle={3}
                         >
-                          {categoryData.map((item, index) => (
+                          {categoryData.map((entry, index) => (
                             <Cell
-                              key={item.category}
-                              fill={COLORS[index % COLORS.length]}
+                              key={entry.name}
+                              fill={CHART_COLORS[index % CHART_COLORS.length]}
                             />
                           ))}
                         </Pie>
 
-                        <Tooltip formatter={(value) => useCurrency(value)} />
+                        <Tooltip formatter={tooltipFormatter} />
 
                         <Legend />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
 
-                  <div className="mt-4 space-y-3">
-                    {categoryData.map((item, index) => (
-                      <div
-                        key={item.category}
-                        className="flex items-center justify-between gap-3 text-sm"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="h-3 w-3 rounded-full"
-                            style={{
-                              backgroundColor: COLORS[index % COLORS.length],
-                            }}
-                          />
+                  <div className="mt-3 space-y-3">
+                    {categoryData.map((category) => {
+                      const percentage =
+                        expenses > 0 ? (category.value / expenses) * 100 : 0;
 
-                          <span className="text-slate-600">
-                            {item.category}
-                          </span>
+                      return (
+                        <div key={category.name}>
+                          <div className="mb-1 flex justify-between gap-3 text-sm">
+                            <span className="text-slate-600 dark:text-slate-300">
+                              {category.name}
+                            </span>
+
+                            <span className="text-right font-medium text-slate-900 dark:text-white">
+                              {formatCurrency(category.value)} (
+                              {percentage.toFixed(1)}%)
+                            </span>
+                          </div>
+
+                          <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                            <div
+                              className="h-full rounded-full"
+                              style={{
+                                width: `${percentage}%`,
+                                backgroundColor:
+                                  CHART_COLORS[
+                                    categoryData.findIndex(
+                                      (item) => item.name === category.name,
+                                    ) % CHART_COLORS.length
+                                  ],
+                              }}
+                            />
+                          </div>
                         </div>
-
-                        <span className="font-medium text-slate-900">
-                          {useCurrency(item.amount)}
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </>
               )}
-            </section>
+            </div>
+          </section>
 
-            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="font-semibold text-slate-900">Monthly Summary</h2>
+          {/* Selected period transaction summary */}
+          <section className="mt-7 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="border-b border-slate-200 p-5 dark:border-slate-800 sm:p-6">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                Transactions for {MONTHS[Number(selectedMonth)]} {selectedYear}
+              </h2>
 
-              <p className="mt-1 text-sm text-slate-500">
-                A breakdown of your selected month's transactions.
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                {monthlyTransactions.length}{" "}
+                {monthlyTransactions.length === 1
+                  ? "transaction"
+                  : "transactions"}{" "}
+                recorded during this period.
               </p>
+            </div>
 
-              <div className="mt-6 space-y-5">
-                <SummaryRow
-                  label="Number of transactions"
-                  value={String(monthlyTransactions.length)}
-                />
+            {monthlyTransactions.length === 0 ? (
+              <p className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">
+                No transactions found for the selected month.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[560px] text-left text-sm">
+                  <thead className="bg-slate-50 text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
+                    <tr>
+                      <th className="px-5 py-3 font-medium">Date</th>
+                      <th className="px-5 py-3 font-medium">Description</th>
+                      <th className="px-5 py-3 font-medium">Category</th>
+                      <th className="px-5 py-3 font-medium">Type</th>
+                      <th className="px-5 py-3 text-right font-medium">
+                        Amount
+                      </th>
+                    </tr>
+                  </thead>
 
-                <SummaryRow
-                  label="Average expense"
-                  value={useCurrency(
-                    monthlyTransactions.filter(
-                      (transaction) => transaction.type === "expense",
-                    ).length > 0
-                      ? expenses /
-                          monthlyTransactions.filter(
-                            (transaction) => transaction.type === "expense",
-                          ).length
-                      : 0,
-                  )}
-                />
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {[...monthlyTransactions]
+                      .sort((a, b) => {
+                        return (
+                          getTransactionDate(b)?.getTime() -
+                          getTransactionDate(a)?.getTime()
+                        );
+                      })
+                      .map((transaction) => {
+                        const transactionDate = getTransactionDate(transaction);
 
-                <SummaryRow
-                  label="Highest spending category"
-                  value={categoryData[0]?.category || "No expenses"}
-                />
+                        return (
+                          <tr
+                            key={transaction.id || transaction._id}
+                            className="hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                          >
+                            <td className="whitespace-nowrap px-5 py-4 text-slate-600 dark:text-slate-300">
+                              {transactionDate
+                                ? transactionDate.toLocaleDateString("en-NG", {
+                                    day: "numeric",
+                                    month: "short",
+                                    year: "numeric",
+                                  })
+                                : "—"}
+                            </td>
 
-                <SummaryRow
-                  label="Highest category spending"
-                  value={useCurrency(categoryData[0]?.amount || 0)}
-                />
+                            <td className="px-5 py-4 font-medium text-slate-900 dark:text-white">
+                              {transaction.description || "Transaction"}
+                            </td>
 
-                <SummaryRow
-                  label="Income minus expenses"
-                  value={useCurrency(cashFlow)}
-                  valueColor={
-                    cashFlow >= 0 ? "text-emerald-600" : "text-rose-600"
-                  }
-                />
+                            <td className="px-5 py-4 text-slate-600 dark:text-slate-300">
+                              {transaction.category || "Other"}
+                            </td>
+
+                            <td className="px-5 py-4">
+                              <span
+                                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                  transaction.type === "income"
+                                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                                    : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
+                                }`}
+                              >
+                                {transaction.type}
+                              </span>
+                            </td>
+
+                            <td
+                              className={`whitespace-nowrap px-5 py-4 text-right font-semibold ${
+                                transaction.type === "income"
+                                  ? "text-emerald-600 dark:text-emerald-400"
+                                  : "text-red-600 dark:text-red-400"
+                              }`}
+                            >
+                              {transaction.type === "income" ? "+" : "-"}
+                              {formatCurrency(Number(transaction.amount || 0))}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
               </div>
-            </section>
-          </div>
-        </div>
-      </main>
-    </div>
-  );
-}
+            )}
+          </section>
 
-function SummaryCard({ title, amount, color }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-sm text-slate-500">{title}</p>
-
-      <p className={`mt-3 text-2xl font-bold ${color}`}>{amount}</p>
-    </div>
-  );
-}
-
-function SummaryRow({ label, value, valueColor = "text-slate-900" }) {
-  return (
-    <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
-      <span className="text-sm text-slate-500">{label}</span>
-
-      <span className={`text-right text-sm font-semibold ${valueColor}`}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function EmptyChart() {
-  return (
-    <div className="flex h-64 items-center justify-center text-center text-sm text-slate-500">
-      No expense transactions for this month yet.
+          <p className="mt-6 text-xs text-slate-400">
+            Reports are calculated from the transactions recorded in your
+            account. Select another month or year to review a different period.
+          </p>
+        </main>
+      </div>
     </div>
   );
 }
